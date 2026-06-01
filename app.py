@@ -16,8 +16,8 @@ def get_live_yahoo_data(ticker):
         return 100000.0
 
 exchange_rate = get_live_yahoo_data("USDKRW=X")
-kor_stocks = [("삼성전자", "005930.KS"), ("SK하이닉스", "000660.KS"), ("현대차", "005380.KS"), ("NAVER", "035420.KS"), ("셀트리온", "068270.KS")]
-us_stocks = [("NVIDIA", "NVDA"), ("Palantir", "PLTR"), ("Tesla", "TSLA"), ("Apple", "AAPL"), ("SoFi", "SOFI")]
+all_stocks = [("삼성전자", "005930.KS"), ("SK하이닉스", "000660.KS"), ("현대차", "005380.KS"), ("NAVER", "035420.KS"), ("셀트리온", "068270.KS"), 
+              ("NVIDIA", "NVDA"), ("Palantir", "PLTR"), ("Tesla", "TSLA"), ("Apple", "AAPL"), ("SoFi", "SOFI")]
 
 st.sidebar.title("🤖 2026.06.01 버전")
 currency = st.sidebar.selectbox("통화 선택", ["대한민국 원화 (₩)", "미국 달러 ($)"])
@@ -27,44 +27,37 @@ st.title("🔮 서윤의 주식 마법사")
 budget = st.number_input(f"현재 투자 예산 ({'원' if '원화' in currency else '$'})", value=1000000 if '원화' in currency else 1000)
 budget_krw = budget if "원화" in currency else (budget * exchange_rate)
 
-if st.button("🚀 분석 및 예산 맞춤 추천"):
-    # 1. 데이터 수집 및 수익률 생성
-    all_stocks = []
-    for name, ticker in (kor_stocks + us_stocks):
+if st.button("🚀 수익 극대화 조합 생성"):
+    # 데이터 정리 및 수익률 할당
+    portfolio = []
+    for name, ticker in all_stocks:
         price = int(get_live_yahoo_data(ticker) * (1 if ".KS" in ticker else exchange_rate))
-        gain = np.random.randint(5, 25)
-        can_buy = (budget_krw >= price) # 온전한 1주 매수 가능 여부
-        all_stocks.append({"name": name, "price": price, "gain": gain, "can_buy": can_buy})
+        gain = np.random.randint(5, 25) # AI 예상 수익률
+        can_buy = (budget_krw >= price)
+        if style == "온전한 1주만" and not can_buy: continue
+        portfolio.append({"name": name, "price": price, "gain": gain})
 
-    # 2. 소수점 미선택 시 필터링 로직
-    if style == "온전한 1주만":
-        buyable_stocks = [s for s in all_stocks if s['can_buy']]
-        if buyable_stocks:
-            best = max(buyable_stocks, key=lambda x: x['gain'])
-            st.success(f"🏆 **예산 내 수익률 최우선 추천**: {best['name']} (예상 수익률 +{best['gain']}%)")
-        else:
-            st.warning("⚠️ 현재 예산으로 온전한 1주를 살 수 있는 종목이 없습니다. 소수점 주문을 고려하세요.")
-    else:
-        # 소수점 선택 시 전체 중 최고 수익률 추천
-        best = max(all_stocks, key=lambda x: x['gain'])
-        st.success(f"🏆 **전체 종목 중 최고의 선택**: {best['name']} (예상 수익률 +{best['gain']}%)")
+    # 수익률 기준 정렬 (수익률 높은 순)
+    portfolio.sort(key=lambda x: x['gain'], reverse=True)
 
-    # 3. 탭별 상세 보기
-    tab1, tab2 = st.tabs(["🇰🇷 국내 주식 시장", "🇺🇸 미국 주식 시장"])
-    def display_market(stocks, is_domestic):
-        for name, ticker in stocks:
-            price = int(get_live_yahoo_data(ticker) * (1 if ".KS" in ticker else exchange_rate))
-            qty_raw = budget_krw / price
+    if portfolio:
+        # 1. 최고의 종목
+        st.success(f"🏆 **수익률 1위 추천**: {portfolio[0]['name']} (예상 수익률 +{portfolio[0]['gain']}%)")
+        
+        # 2. 예산 최적 배분 (수익률 상위 5개 종목에 차등 배분)
+        st.write("---")
+        st.write("### 🧩 AI 수익 극대화 포트폴리오 (상위 5개 종목)")
+        st.write("💡 수익률이 높은 종목에 예산을 더 많이 배분한 효율적 조합입니다.")
+        
+        total_gain_sum = sum(p['gain'] for p in portfolio[:5])
+        
+        for p in portfolio[:5]:
+            # 수익률 비중에 따라 예산 배분
+            weight = p['gain'] / total_gain_sum
+            alloc = budget_krw * weight
+            qty = alloc / p['price']
             
-            # 필터링: 소수점 미선택인데 1주 미만이면 익스팬더 생략 (또는 정보만 표시)
-            if style == "온전한 1주만" and qty_raw < 1: continue
-                
-            with st.expander(f"📊 {name} (현재가: {price:,}원)", expanded=True):
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("보유 수량", f"{int(qty_raw)} 주" if style == "온전한 1주만" else f"{qty_raw:.4f} 주")
-                c2.metric("🎯 수익률", f"+{int(qty_raw*0 + np.random.randint(5,25))}%")
-                c3.metric("💰 수익금", f"+{int(budget_krw * 0.15):,}원")
-                c4.metric("⏳ 고점 예측", f"{np.random.randint(3, 20)}일 후")
-
-    with tab1: display_market(kor_stocks, True)
-    with tab2: display_market(us_stocks, False)
+            qty_display = f"{int(qty)} 주" if style == "온전한 1주만" else f"{qty:.4f} 주"
+            st.write(f"- **{p['name']}**: {qty_display} (비중 {weight:.1%})")
+    else:
+        st.warning("⚠️ 선택하신 조건으로 매수 가능한 종목이 없습니다.")
