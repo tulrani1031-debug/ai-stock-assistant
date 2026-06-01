@@ -53,3 +53,52 @@ with tab1:
                 with st.expander(f"종목: {r['name']} (AI점수: {r['score']}점)", expanded=True):
                     st.write(f"현재가: {'₩' if dom else '$'}{r['price']:.0f} | 수익률: +{r['p_pct']:.1f}%")
                     st.write(f"구매 가능 수량: {r['qty']}주 | 예상 고점: {r['high']:.0f}")
+with tab2: # 🔍 상세 검색 (전체 주식 검색 가능)
+    st.header("🔍 상세 종목 검색")
+    st.write("분석을 원하는 종목의 티커(예: 005930.KS, AAPL)를 입력하세요.")
+    
+    search_q = st.text_input("종목 티커 입력:", key="search_input")
+    
+    if search_q:
+        # 입력한 티커로 즉시 분석 실행
+        res = get_analysis(search_q, ".KS" in search_q, budget, 1380)
+        
+        if res:
+            with st.expander(f"📊 {search_q} 분석 결과", expanded=True):
+                st.write(f"- **현재가:** {res['price']:.0f}원")
+                st.write(f"- **예상 저점:** {res['low']:.0f}원")
+                st.write(f"- **예상 고점:** {res['high']:.0f}원")
+                st.write(f"- **구매 가능 수량:** {res['qty']}주")
+                st.write(f"- **상승 여력:** +{res['p_pct']:.1f}%")
+        else:
+            st.error("해당 종목을 찾을 수 없거나 예산을 초과했습니다. 티커를 확인해주세요.")
+
+with tab3: # [급등 예정 포착] 탭 전용 수정
+    st.header("⚡ 지금 막 급등 시작하는 종목 (거래량 폭발 구간)")
+    for name, ticker in full_db.items():
+        res = get_analysis(ticker, ".KS" in ticker, budget, 1380)
+        
+        # 조건: 1.2배 이상 ~ 2.5배 이하 (이미 너무 터진 3배 이상 제외)
+        if res and 1.2 <= res['vol_ratio'] <= 2.5:
+            with st.expander(f"🚀 {name} - 급등 확률 높음 (현재 거래량 평소의 {res['vol_ratio']:.1f}배)", expanded=True):
+                st.write(f"- **현재가:** {res['price']:.0f}원")
+                st.write(f"- **예상 고점:** {res['high']:.0f}원")
+                st.write("- **상승 이유:** 거래량이 평소보다 강하게 유입되며 변동성이 확대되는 매수 시그널 발생")
+                st.write("- **매수 전략:** 현재 가격에서 분할 매수 진행 후, 고점 돌파 시 비중 확대 권장")
+with tab4: # 🧩 AI 포트폴리오
+    st.header("🧩 AI 포트폴리오 최적 배분")
+    st.write("투자 예산 내에서 관리 중인 종목들의 배분 상태입니다.")
+    
+    # 포트폴리오에 담긴 종목들을 자동으로 추적하여 표시
+    portfolio_stocks = [("삼성전자", "005930.KS"), ("NVIDIA", "NVDA")] # 추적할 종목 목록
+    
+    for name, ticker in portfolio_stocks:
+        res = get_analysis(ticker, ".KS" in ticker, budget, 1380)
+        if res and res['qty'] > 0:
+            with st.expander(f"📦 {name} 비중 관리", expanded=True):
+                total_invested = res['price'] * res['qty']
+                st.write(f"- **보유 수량:** {res['qty']}주")
+                st.write(f"- **총 투자 금액:** {total_invested:,.0f}원")
+                st.write(f"- **전체 예산 대비 비중:** {(total_invested / budget) * 100:.1f}%")
+        else:
+            st.write(f"- {name}: 예산 부족으로 현재 미보유")
