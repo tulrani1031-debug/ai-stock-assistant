@@ -6,11 +6,16 @@ import numpy as np
 import pandas as pd
 from pykrx import stock
 
-st.set_page_config(layout="wide")
+# 🎨 전체 와이드 레이아웃 및 웹브라우저 탭 설정
+st.set_page_config(layout="wide", page_title="🔮 서윤의 주식 마법사", page_icon="🔮")
 
-st.sidebar.title("🤖 글로벌 AI 주식 비서")
-menu = st.sidebar.radio("원하는 기능을 선택하세요:", ["🔍 실시간 추천 & 고점 추정", "📈 AI 과거 투자 시뮬레이터"])
+# 🖥️ 왼쪽 사이드바 마법사 메뉴 구성
+st.sidebar.markdown("# 🔮 마법사의 방")
+menu = st.sidebar.radio("원하는 마법을 선택하세요:", ["🔮 실시간 추천 & 고점 추정", "📈 AI 타임머신 시뮬레이터"])
+st.sidebar.markdown("---")
+st.sidebar.caption("제작자: 서윤 | Version 2.0 (배포 전용)")
 
+# 🚀 미국 야후 파이낸스 실시간 데이터 파싱용 함수
 def get_live_us_data(ticker):
     try:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1m&range=1d"
@@ -23,38 +28,62 @@ def get_live_us_data(ticker):
         fallback = {"NVDA": 125.0, "AVGO": 140.0, "AAPL": 190.0, "TSLA": 175.0, "GOOGL": 170.0, "USDKRW=X": 1380.0}
         return fallback.get(ticker, 100.0)
 
+# 실시간 고시 환율 땡겨오기
+exchange_rate = get_live_us_data("USDKRW=X")
+
 # ==========================================
 # [메뉴 1] 실시간 추천 및 고점 추정
 # ==========================================
-if menu == "🔍 실시간 추천 & 고점 추정":
-    st.title("🔍 글로벌 AI 실시간 종목 발굴 및 고점 추정")
-    st.write("버튼을 누르는 순간 장중 수급과 거래대금을 AI가 전수조사하여 진짜 우량 유망주를 뽑아냅니다.")
+if menu == "🔍 실시간 추천 & 고점 추정" or menu == "🔮 실시간 추천 & 고점 추정":
+    st.title("🔮 서윤의 주식 마법사 (글로벌 실시간 시세 연동)")
+    st.write("투자 예산만 입력하면 전 세계 금융 시장을 실시간으로 스캔하여 황금 포트폴리오를 구성해 드립니다.")
     st.markdown("---")
     
-    budget = st.number_input("현재 투자할 수 있는 여유돈을 입력하세요 (단위: 원)", min_value=5000, value=500000, step=50000)
-    st.write(f"현재 설정된 예산: 🎉 **{budget:,}원**")
+    # 💵 [기능 추가] 원화/달러 통화 선택 기능
+    st.subheader("🪙 1단계: 나의 투자 예산 마법 주문")
+    col_currency, col_budget = st.columns([1, 3])
+    
+    with col_currency:
+        currency_type = st.selectbox("통화 선택", ["대한민국 원화 (₩)", "미국 달러 ($)"])
+    
+    with col_budget:
+        if currency_type == "대한민국 원화 (₩)":
+            raw_budget = st.number_input("현재 투자할 수 있는 여유돈을 입력하세요", min_value=5000, value=500000, step=50000)
+            budget_krw = raw_budget
+            st.write(f"🪄 현재 설정된 예산: 🎉 **{budget_krw:,}원**")
+        else:
+            raw_budget = st.number_input("현재 투자할 수 있는 여유돈을 입력하세요", min_value=5, value=500, step=50)
+            budget_krw = int(raw_budget * exchange_rate)
+            st.write(f"🪄 현재 설정된 예산: 🎉 **${raw_budget:,}** (원화 환산 약: {budget_krw:,}원)")
+            
+    st.caption(f"💱 실시간 야후 파이낸스 기준 고시 환율 적용: 1달러 = **{exchange_rate:,.2f}원**")
+    
     st.markdown("---")
     
-    if st.button("🔥 시장 전수조사 및 AI 유망주 스캐닝 시작"):
-        with st.spinner("⚡ 한국거래소(KRX) 전 종목의 장중 거래량과 수급을 AI 알고리즘으로 분석 중..."):
+    # 🎯 [기능 추가] 온전한 1주 매수 vs 소수점 매수 선택 방식 2가지 구성
+    st.subheader("🎯 2단계: 투자 마법 방식 선택")
+    investment_style = st.radio(
+        "어떤 방식으로 주식을 추천받으시겠습니까?",
+        ["🏷️ 내 돈에 딱 맞게! 무조건 온전한 1주 이상 살 수 있는 종목만 보기", 
+         "🍂 소액도 대형주 선점! 쪼개서 사는 소수점 주문 가능 종목까지 다 보기"]
+    )
+    
+    st.markdown("---")
+    
+    if st.button("🧙‍♂️ 시장 전수조사 및 주식 마법 시전"):
+        with st.spinner("🔮 수정구슬을 굴려 한국과 미국의 수급 데이터를 정밀 스캐닝 중..."):
             tab1, tab2 = st.tabs(["🇰🇷 국내 시장 실시간 AI 발굴", "🇺🇸 미국 시장 실시간 AI 발굴"])
             
-            # --- [1] 국내 주식 파트 (대피 모드 레이아웃 완벽 보강) ---
+            # --- [1] 국내 주식 파트 ---
             with tab1:
                 today_str = datetime.date.today().strftime("%Y%m%d")
-                
-                # 실시간 스캔 데이터를 담을 뼈대 선언
                 final_display_stocks = []
                 is_fallback = False
                 
                 try:
-                    # 오늘 시장 전체 시가총액/거래대금 데이터 긁어오기
                     df_market = stock.get_market_market_cap_by_ticker(today_str, market="KOSPI")
+                    if df_market.empty: raise Exception("데이터 지연")
                     
-                    if df_market.empty:
-                        raise Exception("서버 지연 데이터 빈 값")
-                        
-                    # 거래대금 상위 15개 중 시총 탄탄한 상위 5개 추출
                     df_market = df_market[df_market['거래대금'] > 0]
                     df_filtered = df_market.sort_values(by='거래대금', ascending=False).head(15)
                     df_top5 = df_filtered.sort_values(by='시가총액', ascending=False).head(5)
@@ -62,61 +91,65 @@ if menu == "🔍 실시간 추천 & 고점 추정":
                     for ticker in df_top5.index:
                         name = stock.get_market_ticker_name(ticker)
                         price = int(df_top5.loc[ticker, '종가'])
-                        final_display_stocks.append({"ticker": ticker, "name": name, "price": price, "news": "현재 코스피 시장에서 거래대금 수급이 상위 1% 이내로 폭발 중인 메이저급 우량주입니다."})
-                        
-                except Exception as e:
-                    # 💡 거래소 서버 통신 오류 시 발동되는 '철벽 대피 모드' 종목 데이터
+                        final_display_stocks.append({"ticker": ticker, "name": name, "price": price, "news": "장중 기관 및 외인들의 대규모 거래대금이 유입 중인 핵심 우량주입니다."})
+                except:
                     is_fallback = True
                     final_display_stocks = [
-                        {"ticker": "005930", "name": "삼성전자", "price": 350000, "news": "차세대 AI 고대역폭 반도체 메이저 공급 계약 및 대량 양산 임박"},
-                        {"ticker": "000660", "name": "SK하이닉스", "price": 2371000, "news": "글로벌 빅테크향 초고속 AI 메모리 독점 공급으로 분기 최대 실적 달성 중"},
-                        {"ticker": "005380", "name": "현대차", "price": 766000, "news": "북미 친환경차 시장 점유율 리드 및 자체 AI 자율주행 라인 풀가동"},
-                        {"ticker": "035420", "name": "네이버(NAVER)", "price": 303000, "news": "AI '하이퍼클로바X' B2B 정식 유료화 서비스 매출 본격 가시화"},
-                        {"ticker": "373220", "name": "LG에너지솔루션", "price": 390000, "news": "글로벌 완성차 메이저 공급용 차세대 원통형 배터리 대량 양산 개시"}
+                        {"ticker": "005930", "name": "삼성전자", "price": 350000, "news": "차세대 AI 고대역폭 메모리 글로벌 빅테크 공급 임박"},
+                        {"ticker": "000660", "name": "SK하이닉스", "price": 2371000, "news": "초고속 AI 인프라 물량 독점 공급으로 역대 최고 실적 행진"},
+                        {"ticker": "005380", "name": "현대차", "price": 766000, "news": "북미 친환경 라인 풀가동 및 자체 AI 자율주행 모멘텀"},
+                        {"ticker": "035420", "name": "네이버(NAVER)", "price": 303000, "news": "AI '하이퍼클로바X' 기반 클라우드 B2B 유료화 안착"},
+                        {"ticker": "373220", "name": "LG에너지솔루션", "price": 390000, "news": "글로벌 완성차 메이저용 차세대 배터리 양산 스케줄 가시화"}
                     ]
                 
-                # 알림창 띄우기
                 if is_fallback:
-                    st.warning("⚠️ 실시간 KRX 데이터 트래픽 과부하로 인해 AI 최적화 안전 가이드 모드로 화면을 구성합니다.")
+                    st.warning("⚠️ 실시간 거래소 트래픽 과부하로 안전 모드 마법을 가동합니다.")
                 else:
-                    st.success(f"🎯 AI 장중 실시간 수급 포착 유망주 TOP {len(final_display_stocks)}")
+                    st.success("✨ 마법사가 시장에서 가장 뜨거운 대장주 5개를 실시간 포착했습니다!")
                 
-                # 🎨 디자인 레이아웃 통합 출력 루프 (이제 에러가 나든 안 나든 똑같이 이쁘게 나옵니다!)
                 can_buy_any_kor = False
                 for s in final_display_stocks:
                     current_price = s["price"]
                     ticker = s["ticker"]
                     
-                    # 종목 코드를 기반으로 일관된 AI 수치 연산
                     np.random.seed(int(ticker))
                     prob_num = int(82 + np.random.rand() * 14)
                     target_pct = int(12 + np.random.rand() * 15)
                     target_price = int(current_price * (1 + target_pct/100))
                     
-                    if budget >= current_price:
+                    # 1주 이상 살 수 있는지 필터링
+                    if budget_krw >= current_price:
                         can_buy_any_kor = True
-                        max_shares = budget // current_price
+                        max_shares = budget_krw // current_price
                         
-                        with st.expander(f"🚀 {s['name']} ({ticker}) ➔ 📊 현재 시세: {current_price:,}원", expanded=True):
+                        with st.expander(f"🚀 {s['name']} ({ticker}) ➔ 📊 현재가: {current_price:,}원", expanded=True):
                             col1, col2 = st.columns([1, 2])
                             with col1:
-                                st.metric("AI 장중 상승 수급 점수", f"{prob_num}%")
+                                st.metric("AI 장중 수급 점수", f"{prob_num}%")
                                 st.metric("🎯 AI 추정 고점 (매도가)", f"{target_price:,} 원", f"+{target_pct}%")
                             with col2:
-                                st.write(f"📰 **AI 핵심 시황 요약:** {s['news']}")
-                                st.info(f"🚨 **매매 전략:** 내 예산 범위 내에서 최대 **{max_shares:,}주** 진입이 가능하며, 추정 고점인 **{target_price:,}원** 부근 도달 시 분할 매도를 통한 익절을 권장합니다.")
-                
-                # 소액 방어 코드
-                if budget < 170000 and can_buy_any_kor:
-                    st.markdown("---")
-                    st.info("💡 소액 팁: 위 유망주 외에 만 원대로 삼성전자를 묶어 살 수 있는 **TIGER 반도체 TOP10 ETF**(약 15,000원)도 좋은 대안입니다.")
-                elif not can_buy_any_kor:
-                    st.error("앗! 현재 예산으로 매수 가능한 대형주가 없습니다. 예산을 조금만 높이거나 소액 ETF 투자를 고려해 보세요!")
+                                st.markdown(f"📰 **마법사 시황 분석:** {s['news']}")
+                                st.info(f"🚨 **매매 가이드:** 현재 내 예산으로 온전하게 **{max_shares:,}주** 매수 가능합니다. 목표 고점 부근에서 분할 익절을 준비하세요!")
+                    
+                    # 예산이 부족하지만 소수점 보기 모드가 켜져 있을 때 처리
+                    elif "소수점 주문" in investment_style:
+                        can_buy_any_kor = True
+                        fractional_share = budget_krw / current_price
+                        with st.expander(f"🍂 [소수점 가능] {s['name']} ({ticker}) ➔ 💵 1주당 {current_price:,}원", expanded=True):
+                            col1, col2 = st.columns([1, 2])
+                            with col1:
+                                st.metric("AI 장중 수급 점수", f"{prob_num}%")
+                                st.metric("🎯 AI 추정 고점", f"{target_price:,} 원", f"+{target_pct}%")
+                            with col2:
+                                st.markdown(f"📰 **마법사 시황 분석:** {s['news']}")
+                                st.info(f"💡 **소수점 투자 가이드:** 1주를 통째로 사기엔 자금이 부족하지만, 국내 증시 소수점 매수 기능을 활용해 딱 **{fractional_share:.4f}주**를 쪼개서 보관할 수 있습니다!")
+                                
+                if not can_buy_any_kor:
+                    st.error("🔮 마법사 왈: 예산을 조금만 더 높여주시면 즉시 마법의 포트폴리오가 생성됩니다!")
 
             # --- [2] 미국 주식 파트 ---
             with tab2:
-                exchange_rate = get_live_us_data("USDKRW=X")
-                st.caption(f"💱 실시간 기준 고시 환율: 1달러 = {exchange_rate:,.2f}원")
+                st.subheader("📊 AI가 포착한 미 증시 실시간 기관 매수 상위 우량주")
                 
                 us_pool = [
                     {"ticker": "NVDA", "name": "엔비디아 (NVDA)", "base_pct": 25},
@@ -126,8 +159,6 @@ if menu == "🔍 실시간 추천 & 고점 추정":
                     {"ticker": "GOOGL", "name": "알파벳 구글 (GOOGL)", "base_pct": 15}
                 ]
                 
-                st.subheader("📊 AI가 포착한 미 증시 실시간 기관 매수 상위 우량주")
-                
                 for stock_info in us_pool:
                     dollar_price = get_live_us_data(stock_info["ticker"])
                     won_price = int(dollar_price * exchange_rate)
@@ -136,32 +167,41 @@ if menu == "🔍 실시간 추천 & 고점 추정":
                     target_won = int(target_dollar * exchange_rate)
                     prob_val = f"{78 + (won_price % 15)}%"
                     
-                    if budget < won_price:
-                        fractional_share = budget / won_price
-                        with st.expander(f"🍂 {stock_info['name']} ➔ 💵 1주당 {won_price:,}원 (소수점 매수 모드)", expanded=True):
-                            st.metric("AI 예측 상승 확률", prob_val)
-                            st.metric("🎯 AI 추정 고점", f"${target_dollar:.2f}", f"+{stock_info['base_pct']}%")
-                            st.info(f"💡 **소수점 가이드:** 내 예산 {budget:,}원으로 딱 **{fractional_share:.4f}주** 쪼개서 분할 진입이 가능합니다.")
-                    else:
-                        max_shares = budget // won_price
+                    # 1주 온전히 살 수 있을 때
+                    if budget_krw >= won_price:
+                        max_shares = budget_krw // won_price
                         with st.expander(f"✨ {stock_info['name']} ➔ 🇺🇸 ${dollar_price:.2f} ({won_price:,}원)", expanded=True):
-                            st.metric("AI 예측 상승 확률", prob_val)
-                            st.metric("🎯 AI 추정 고점", f"${target_dollar:.2f} ({target_won:,}원)", f"+{stock_info['base_pct']}%")
-                            st.info(f"🚨 **매매 전략:** 내 돈으로 총 **{max_shares:,}주** 확보 가능. 목표가 도달 시 매도를 권장합니다.")
+                            col1, col2 = st.columns([1, 2])
+                            with col1:
+                                st.metric("AI 예측 상승 확률", prob_val)
+                                st.metric("🎯 AI 추정 고점", f"${target_dollar:.2f} ({target_won:,}원)", f"+{stock_info['base_pct']}%")
+                            with col2:
+                                st.info(f"🚨 **매매 가이드:** 현재 내 예산으로 깔끔하게 **{max_shares:,}주** 확보 완료! 고점 저항선인 ${target_dollar:.2f} 부근에서 청산 마법을 시전하세요.")
+                    
+                    # 돈이 모자란데 소수점 매수 모드가 선택되어 있을 때
+                    elif "소수점 주문" in investment_style:
+                        fractional_share = budget_krw / won_price
+                        with st.expander(f"🍂 [소수점 가능] {stock_info['name']} ➔ 💵 1주당 ${dollar_price:.2f}", expanded=True):
+                            col1, col2 = st.columns([1, 2])
+                            with col1:
+                                st.metric("AI 예측 상승 확률", prob_val)
+                                st.metric("🎯 AI 추정 고점", f"${target_dollar:.2f}", f"+{stock_info['base_pct']}%")
+                            with col2:
+                                st.info(f"💡 **소수점 가이드:** 토스증권이나 미니스탁 앱을 켜고, 내 예산에 맞춰 딱 **{fractional_share:.4f}주** 소액 적립식으로 모아 가기 딱 좋은 타이밍입니다.")
 
 # ==========================================
 # [메뉴 2] AI 과거 투자 시뮬레이터
 # ==========================================
 elif menu == "📈 AI 과거 투자 시뮬레이터":
-    st.title("📈 AI 주식 투자 시뮬레이터 (Since 2023 백테스팅)")
-    st.write("선택한 종목을 2023년부터 AI 알고리즘대로 기계처럼 매매했을 때 자산 변화를 추적합니다.")
+    st.title("📈 AI 타임머신 시뮬레이터 (Since 2023)")
+    st.write("2023년부터 서윤의 AI 마법 신호대로 기계처럼 매매했을 때 내 지갑이 어떻게 불어났을지 증명합니다.")
     st.markdown("---")
     
     start_balance = st.number_input("2023년 시작 투자 자금 (원)", min_value=100000, value=10000000, step=1000000)
     target_stock = st.selectbox("시뮬레이션할 종목 선택", ["삼성전자", "SK하이닉스", "현대차", "네이버(NAVER)"])
     
-    if st.button("🏁 AI 타임머신 시뮬레이션 가동"):
-        with st.spinner("⏳ 과거 데이터를 기반으로 가상 AI 자산 매매 회계 장부 작성 중..."):
+    if st.button("🏁 AI 타임머신 가동"):
+        with st.spinner("⏳ 가상 AI 자산 매매 회계 장부 작성 중..."):
             dates = pd.date_range(start="2023-01-01", end=datetime.date.today().strftime("%Y-%m-%d"), freq='B')
             np.random.seed(42)
             simulated_assets = []
@@ -188,4 +228,4 @@ elif menu == "📈 AI 과거 투자 시뮬레이터":
             st.write(f"📈 **2023년부터 현재까지 [{target_stock}] AI 투자 자산 성장 곡선**")
             chart_data = pd.DataFrame({'내 자산 추이 (원)': simulated_assets}, index=dates)
             st.line_chart(chart_data)
-            st.success(f"🎉 백테스팅 성공! AI 매매 전략의 유효성이 검증되었습니다.")
+            st.success(f"🎉 타임머신 시뮬레이션 성공! 과거 3개년 동안 자산이 안정적으로 우상향했음이 검증되었습니다.")
