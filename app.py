@@ -1,12 +1,20 @@
 import streamlit as st
 import yfinance as yf
 from streamlit_autorefresh import st_autorefresh
+import requests
 
-# 1. 환경 설정 및 실시간 업데이트 (60초 주기)
+# 1. 환경 설정
 st_autorefresh(interval=60000, key="refresh")
 st.set_page_config(layout="wide", page_title="🔮 서윤의 주식 마법사 PRO")
 
-# 2. 데이터 분석 엔진 (실시간 메타 분석 반영)
+# 실시간 환율 가져오기 (무료 API)
+def get_realtime_rate():
+    try:
+        url = "https://api.exchangerate-api.com/v4/latest/USD"
+        return requests.get(url).json()['rates']['KRW']
+    except: return 1380.0
+
+# 2. 데이터 분석 엔진
 @st.cache_data(ttl=600)
 def get_analysis(ticker, is_dom, budget, rate):
     try:
@@ -16,39 +24,41 @@ def get_analysis(ticker, is_dom, budget, rate):
         curr = float(df['Close'].iloc[-1])
         vol_ratio = df['Volume'].iloc[-1] / df['Volume'].rolling(20).mean().iloc[-1]
         
-        # 메타 반영 점수: 거래량 급증 + 이동평균선 정배열
-        ma5 = df['Close'].rolling(5).mean().iloc[-1]
-        ma20 = df['Close'].rolling(20).mean().iloc[-1]
-        score = int((ma5 > ma20) * 50 + (vol_ratio > 1.2) * 50)
+        # 메타 분석 점수
+        score = int((df['Close'].iloc[-1] > df['Close'].rolling(20).mean().iloc[-1]) * 50 + (vol_ratio > 1.2) * 50)
         
         price_krw = curr if is_dom else curr * rate
-        return {"name": ticker, "price": curr, "score": score, "vol": vol_ratio, "qty": int(budget/price_krw)}
+        return {"price": curr, "score": score, "vol": vol_ratio, "qty": int(budget/price_krw)}
     except: return None
 
 # 3. 메인 대시보드
 st.title("🔮 서윤의 주식 마법사 PRO")
-col_a, col_b = st.columns([1, 3])
-with col_a:
-    budget = st.number_input("투자 예산 (KRW)", value=1000000, step=10000)
-    rate = st.number_input("실시간 환율 (KRW/USD)", value=1380.0, step=1.0)
-    st.info(f"업데이트: 매 1분 자동 갱신 중")
+rate = get_realtime_rate()
+st.sidebar.metric("실시간 환율 (USD/KRW)", f"{rate:,.2f}원")
+budget = st.sidebar.number_input("투자 예산 (KRW)", value=1000000, step=10000)
 
-# 전체 시장 분석 (Top 5 추출)
-all_tickers = ["005930.KS", "NVDA", "TSLA", "000660.KS", "AAPL", "PLTR", "MSFT", "AMD", "035420.KS", "005380.KS"]
-results = [get_analysis(t, ".KS" in t, budget, rate) for t in all_tickers]
-top_5 = sorted([r for r in results if r], key=lambda x: x['score'], reverse=True)[:5]
+# 국내/해외 종목 리스트 (한글 명칭 매핑)
+kor_list = [("삼성전자", "005930.KS"), ("SK하이닉스", "000660.KS"), ("현대차", "005380.KS"), ("네이버", "035420.KS"), ("카카오", "035720.KS")]
+usa_list = [("엔비디아", "NVDA"), ("테슬라", "TSLA"), ("애플", "AAPL"), ("팔란티어", "PLTR"), ("마이크로소프트", "MSFT")]
 
-tab1, tab2 = st.tabs(["🚀 AI 추천 TOP 5", "⚡ 급등 예정"])
+tab1, tab2 = st.tabs(["🚀 추천 종목 (국내/해외 분리)", "⚡ 급등 예정"])
 
 with tab1:
-    st.subheader("📊 현재 시장 메타 반영 TOP 5")
-    for r in top_5:
-        with st.expander(f"**{r['name']}** | AI 점수: {r['score']}점", expanded=True):
-            st.metric("현재가", f"{r['price']:.2f}")
-            st.write(f"구매 가능 수량: {r['qty']}주 | 거래량 흐름: {r['vol']:.1f}배")
+    col1, col2 = st.columns(2)
+    for i, (col, title, stocks, dom) in enumerate([(col1, "🇰🇷 국내 TOP 5", kor_list, True), (col2, "🇺🇸 해외 TOP 5", usa_list, False)]):
+        with col:
+            st.subheader(title)
+            for name, ticker in stocks:
+                res = get_analysis(ticker, dom, budget, rate)
+                if res:
+                    st.write(f"### {name}")
+                    st.metric("현재가", f"{res['price']:.2f}")
+                    st.write(f"AI 점수: {res['score']}점 | 구매가능: {res['qty']}주")
+                    st.divider()
 
 with tab2:
-    st.subheader("⚡ 급등 시작 신호 (거래량 폭발)")
-    for r in results:
-        if r and 1.2 <= r['vol'] <= 2.5:
-            st.warning(f"🚀 **{r['name']}** - 거래량 {r['vol']:.1f}배 폭발! (지금이 매수 기회)")
+    st.header("⚡ 급등 신호 포착 (거래량 폭발)")
+    for name, ticker in (kor_list + usa_list):
+        res = get_analysis(ticker, ".KS" in ticker, budget, rate)
+        if res and 1.2 <= res['vol'] <= 3.0:
+            st.warning(f"🚀 **{name}** - 거래량 평소의 {res['vol']:.1f}배! (매수 메타 확인)")
