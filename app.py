@@ -42,11 +42,12 @@ with tab_main:
             
             gain = np.random.randint(5, 25)
             profit = int(budget_krw * (gain / 100))
-            peak_price = int(price * (1 + gain / 100)) # 예상 고점 가격
+            peak_price = int(price * (1 + gain / 100))
             days = np.random.randint(3, 20)
             qty_disp = f"{int(qty_raw)} 주" if style == "온전한 1주만" else f"{qty_raw:.4f} 주"
             
-            with st.expander(f"📊 {name} (현재가: {price:,}원)"):
+            # expanded=True로 변경하여 처음에 펴져 있도록 설정
+            with st.expander(f"📊 {name} (현재가: {price:,}원)", expanded=True):
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("보유 수량", qty_disp)
                 c2.metric("🎯 예상 수익률", f"+{gain}%")
