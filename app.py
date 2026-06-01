@@ -4,11 +4,12 @@ import urllib.request
 import json
 from streamlit_autorefresh import st_autorefresh
 
-# 60초마다 자동 새로고침 설정
+# 1분마다 자동 새로고침 (실시간 데이터 반영)
 st_autorefresh(interval=60000, key="datarefresh")
 
 st.set_page_config(layout="wide", page_title="🔮 서윤의 주식 마법사 2026", page_icon="🔮")
 
+# 야후 파이낸스 데이터 로드 함수
 def get_live_yahoo_data(ticker):
     try:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1m&range=1d"
@@ -19,21 +20,22 @@ def get_live_yahoo_data(ticker):
     except:
         return 100000.0
 
-# 시장 데이터 및 설정
+# 종목 리스트 설정
 exchange_rate = get_live_yahoo_data("USDKRW=X")
 kor_stocks = [("삼성전자", "005930.KS"), ("SK하이닉스", "000660.KS"), ("현대차", "005380.KS"), ("NAVER", "035420.KS"), ("셀트리온", "068270.KS")]
 us_stocks = [("NVIDIA", "NVDA"), ("Palantir", "PLTR"), ("Tesla", "TSLA"), ("Apple", "AAPL"), ("SoFi", "SOFI")]
 
-st.sidebar.title("🤖 2026.06.01 버전")
-currency = st.sidebar.selectbox("통화 선택", ["대한민국 원화 (₩)", "미국 달러 ($)"])
-style = st.sidebar.radio("투자 방식", ["온전한 1주만", "소수점 주문 포함"])
+# 사이드바 설정
+st.sidebar.title("🤖 2026.06.01 설정")
+currency = st.sidebar.selectbox("통화", ["대한민국 원화 (₩)", "미국 달러 ($)"])
+style = st.sidebar.radio("주문 방식", ["온전한 1주만", "소수점 주문 포함"])
 
+# 메인 화면
 st.title("🔮 서윤의 주식 마법사")
-budget = st.number_input(f"현재 투자 예산 ({'원' if '원화' in currency else '$'})", 
-                         min_value=0, step=10000, value=1000000 if '원화' in currency else 1000)
+budget = st.number_input(f"예산 입력 (10,000원 단위)", min_value=0, step=10000, value=1000000 if '원화' in currency else 1000)
 budget_krw = budget if "원화" in currency else (budget * exchange_rate)
 
-# 탭 분리
+# 탭 구조
 tab_main, tab_port = st.tabs(["📊 실시간 종목 분석", "🧩 수익 극대화 포트폴리오"])
 
 with tab_main:
@@ -46,6 +48,7 @@ with tab_main:
             
             if style == "온전한 1주만" and qty_raw < 1: continue
             
+            # 분석 지표 생성
             gain = np.random.randint(5, 25)
             profit = int(budget_krw * (gain / 100))
             peak_price = int(price * (1 + gain / 100))
@@ -54,7 +57,6 @@ with tab_main:
             days_to_peak = np.random.randint(3, 20)
             qty_disp = f"{int(qty_raw)} 주" if style == "온전한 1주만" else f"{qty_raw:.4f} 주"
             
-            # expanded=True로 항상 펴져 있는 인터페이스
             with st.expander(f"📊 {name} (현재가: {price:,}원)", expanded=True):
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("보유 수량", qty_disp)
@@ -89,4 +91,4 @@ with tab_port:
                     qty_disp = f"{int(qty)} 주" if style == "온전한 1주만" else f"{qty:.4f} 주"
                     st.write(f"- **{p['name']}**: {qty_disp} (비중 {weight:.1%})")
         else:
-            st.warning("매수 가능한 종목이 없습니다.")
+            st.warning("예산 범위 내 매수 가능한 종목이 없습니다.")
