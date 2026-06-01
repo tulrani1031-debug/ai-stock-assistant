@@ -4,6 +4,14 @@ import urllib.request
 import json
 
 st.set_page_config(layout="wide", page_title="🔮 서윤의 주식 마법사 2026", page_icon="🔮")
+import streamlit as st
+import numpy as np
+import urllib.request
+import json
+from streamlit_autorefresh import st_autorefresh # 이 라이브러리가 필요합니다
+
+# 60초마다 페이지 새로고침 (데이터 주기적 업데이트)
+st_autorefresh(interval=60000, key="datarefresh")
 
 def get_live_yahoo_data(ticker):
     try:
