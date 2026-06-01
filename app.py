@@ -3,8 +3,7 @@ import numpy as np
 import urllib.request
 import json
 
-# 1. 설정 및 기본 데이터
-st.set_page_config(layout="wide", page_title="🔮 오늘의 추천 픽")
+st.set_page_config(layout="wide", page_title="🔮 서윤의 주식 마법사 2026")
 
 def get_live_yahoo_data(ticker):
     try:
@@ -16,34 +15,36 @@ def get_live_yahoo_data(ticker):
     except:
         return 100000.0
 
+# 데이터 설정
 kor_stocks = [("삼성전자", "005930.KS"), ("SK하이닉스", "000660.KS"), ("현대차", "005380.KS"), ("NAVER", "035420.KS"), ("셀트리온", "068270.KS")]
-all_stocks = [(n, t, True) for n, t in kor_stocks]
+us_stocks = [("NVIDIA", "NVDA"), ("Palantir", "PLTR"), ("Tesla", "TSLA"), ("Apple", "AAPL"), ("SoFi", "SOFI")]
+all_stocks = [(n, t, True) for n, t in kor_stocks] + [(n, t, False) for n, t in us_stocks]
 
-# 2. 오늘의 추천 픽 선정 (랜덤 기반)
+# 1. 상단 추천 픽 (중앙 배치)
+st.title("🔮 서윤의 주식 마법사")
+st.subheader("🔥 오늘의 추천 픽")
+
 best_item = all_stocks[np.random.randint(0, len(all_stocks))]
 name, ticker, is_dom = best_item
 price = int(get_live_yahoo_data(ticker))
+gain = np.random.randint(15, 30)
 
-# 분석 지표 계산
-gain_pct = np.random.randint(15, 30)
-target_price = int(price * 0.95)
-peak_price = int(price * (1 + gain_pct / 100))
-profit = int(price * (gain_pct / 100))
-loss = int(price * 0.05)
-
-# 3. 화면 구성 (중앙 집중형)
-st.title("🔮 오늘의 마법 같은 추천 종목")
-st.markdown("---")
-
-col_mid = st.columns([1, 2, 1])[1] # 중앙 정렬 효과
+col_mid = st.columns([1, 2, 1])[1]
 with col_mid:
-    st.success(f"## 🏆 {name}")
-    st.metric(label="현재가", value=f"{price:,} 원")
-    st.write(f"📈 예상 수익률: **+{gain_pct}%**")
-    st.write(f"📉 매수 타겟가: **{target_price:,} 원**")
-    st.write(f"💰 기대 수익금(1주당): **+{profit:,} 원**")
-    st.write(f"🔻 1주당 적자폭(손절가): **-{loss:,} 원**")
+    st.success(f"### 🏆 {name}")
+    st.metric("현재가", f"{price:,}원")
+    st.write(f"📈 예상 수익률: **+{gain}%** | 📉 매수타겟: **{int(price*0.95):,}원**")
 
-st.markdown("---")
-if st.button("새로운 추천 픽 뽑기"):
-    st.rerun()
+st.divider()
+
+# 2. 예산 및 전체 분석 리스트
+budget = st.number_input("투자 예산(원)", min_value=0, step=10000, value=1000000)
+
+for name, ticker, is_dom in all_stocks:
+    p = int(get_live_yahoo_data(ticker))
+    g = np.random.randint(5, 20)
+    with st.expander(f"{name} (현재가: {p:,}원)"):
+        c1, c2, c3 = st.columns(3)
+        c1.metric("예상 수익률", f"+{g}%")
+        c2.metric("매수타겟", f"{int(p*0.95):,}원")
+        c3.metric("적자폭(1주)", f"-{int(p*0.05):,}원")
