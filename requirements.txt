@@ -1,4 +1,4 @@
 streamlit
-pykrx
-pandas
 numpy
+pandas
+pykrx --upgrade
