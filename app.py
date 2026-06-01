@@ -24,7 +24,6 @@ currency = st.sidebar.selectbox("통화 선택", ["대한민국 원화 (₩)", "
 style = st.sidebar.radio("투자 방식", ["온전한 1주만", "소수점 주문 포함"])
 
 st.title("🔮 서윤의 주식 마법사")
-# 예산 10,000원 단위 설정
 budget = st.number_input(f"현재 투자 예산 ({'원' if '원화' in currency else '$'})", 
                          min_value=0, step=10000, value=1000000 if '원화' in currency else 1000)
 budget_krw = budget if "원화" in currency else (budget * exchange_rate)
@@ -43,6 +42,7 @@ with tab_main:
             
             gain = np.random.randint(5, 25)
             profit = int(budget_krw * (gain / 100))
+            peak_price = int(price * (1 + gain / 100)) # 예상 고점 가격
             days = np.random.randint(3, 20)
             qty_disp = f"{int(qty_raw)} 주" if style == "온전한 1주만" else f"{qty_raw:.4f} 주"
             
@@ -51,7 +51,7 @@ with tab_main:
                 c1.metric("보유 수량", qty_disp)
                 c2.metric("🎯 예상 수익률", f"+{gain}%")
                 c3.metric("💰 예상 수익금", f"+{profit:,}원")
-                c4.metric("⏳ 고점 예측", f"{days}일 후")
+                c4.metric("📈 예상 고점", f"{peak_price:,}원 ({days}일 후)")
 
     with sub_tab1: display_stocks(kor_stocks, True)
     with sub_tab2: display_stocks(us_stocks, False)
