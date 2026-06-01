@@ -6,7 +6,6 @@ from datetime import date
 
 st.set_page_config(layout="wide", page_title="🔮 서윤의 주식 마법사 2026", page_icon="🔮")
 
-# 데이터 추출 엔진
 def get_live_yahoo_data(ticker):
     try:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1m&range=1d"
@@ -30,19 +29,16 @@ exclude_etf = st.sidebar.checkbox("❌ ETF 제외", value=True)
 
 menu = st.sidebar.radio("메뉴 선택", ["🔮 실시간 AI 종목 분석", "🧩 5종목 분할 포트폴리오"])
 
-st.title("🔮 서윤의 주식 마법사 (통합 정밀 분석판)")
+st.title("🔮 서윤의 주식 마법사")
 budget = st.number_input(f"현재 투자 예산 ({'원' if '원화' in currency else '$'})", value=1000000 if '원화' in currency else 1000)
 budget_krw = budget if "원화" in currency else int(budget * exchange_rate)
 
-if st.button("🚀 실시간 분석 및 수량 계산"):
+if st.button("🚀 분석 실행"):
     all_stocks = kor_stocks + us_stocks
-    
     for name, ticker in all_stocks:
         price = int(get_live_yahoo_data(ticker) * (1 if ".KS" in ticker else exchange_rate))
         qty_raw = budget_krw / price
-        
-        # 수량 표시 로직: 소수점 미선택 시 정수(약 X주)로 표시
-        qty_display = f"{int(qty_raw)} 주" if style == "온전한 1주만" else f"{qty_raw:.4f} 주"
+        qty_display = f"약 {int(qty_raw)} 주" if style == "온전한 1주만" else f"{qty_raw:.4f} 주"
         
         gain = np.random.randint(5, 25)
         profit = int(budget_krw * (gain / 100))
@@ -52,17 +48,12 @@ if st.button("🚀 실시간 분석 및 수량 계산"):
             c1.metric("매수 가능 수량", qty_display)
             c2.metric("🎯 예상 수익률", f"+{gain}%")
             c3.metric("💰 예상 수익금", f"+{profit:,}원")
-            
-            if budget_krw >= price or style == "소수점 주문 포함":
-                st.success("✅ 매수 가능")
-            else:
-                st.warning("⚠️ 예산 부족")
 
 if menu == "🧩 5종목 분할 포트폴리오":
     st.write("---")
     st.write("### 🤖 5종목 균등 분할 투자 (예산 20%씩)")
-    for name, ticker in (kor_stocks if "국내" in menu else us_stocks):
+    for name, ticker in (kor_stocks + us_stocks):
         price = int(get_live_yahoo_data(ticker) * (1 if ".KS" in ticker else exchange_rate))
         qty = (budget_krw / 5) / price
-        display = f"{int(qty)} 주" if style == "온전한 1주만" else f"{qty:.4f} 주"
-        st.write(f"- **{name}**: {display} 매수 가능")
+        display = f"약 {int(qty)} 주" if style == "온전한 1주만" else f"{qty:.4f} 주"
+        st.write(f"- **{name}**: {display}")
