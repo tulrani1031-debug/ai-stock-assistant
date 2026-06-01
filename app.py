@@ -15,7 +15,7 @@ def get_analysis(ticker, is_dom, budget, rate):
         if df.empty or len(df) < 20: return None
         curr = float(df['Close'].iloc[-1])
         price_krw = curr if is_dom else curr * rate
-        if price_krw > budget: return None # 예산 초과 필터링
+        if price_krw > budget: return None
         
         ma5, ma20 = df['Close'].rolling(5).mean().iloc[-1], df['Close'].rolling(20).mean().iloc[-1]
         std = df['Close'].rolling(20).std().iloc[-1]
@@ -30,7 +30,7 @@ def get_analysis(ticker, is_dom, budget, rate):
         }
     except: return None
 
-# 3. 메인 UI (모든 기능 100% 통합)
+# 3. 메인 UI (모든 기능 100% 통합 & UI 시각화 개선)
 st.title("🔮 서윤의 주식 마법사 PRO")
 budget = st.sidebar.number_input("투자 예산 (KRW)", value=1000000, step=10000)
 rate = 1380
@@ -49,11 +49,13 @@ with tab1:
             for n, t in pool:
                 res = get_analysis(t, dom, budget, rate)
                 if res: recs.append((n, res))
+            
+            # 여기서 expanded=True를 적용하여 자동으로 펼쳐지게 변경했습니다.
             for name, d in sorted(recs, key=lambda x: x[1]['score'], reverse=True)[:5]:
-                with st.expander(f"{name} (AI {d['score']}점)"):
-                    st.write(f"현재가: {'₩' if dom else '$'}{d['price']:.2f} | 예상수익: +{d['p_pct']:.1f}%")
-                    st.write(f"구매수량: {d['qty']}주 | 수익금: {d['p_amt']:,.0f}원 | 현금: {d['cash']:,.0f}원")
-                    st.write(f"📉저점: {d['low']:.0f} (2~4일) | 📈고점: {d['high']:.0f} (10~15일)")
+                with st.expander(f"**{name}** (AI 점수: {d['score']}점)", expanded=True):
+                    st.write(f"💰 현재가: {'₩' if dom else '$'}{d['price']:.2f} | 📈 예상수익률: +{d['p_pct']:.1f}%")
+                    st.write(f"📦 구매가능: {d['qty']}주 | 💵 수익금: {d['p_amt']:,.0f}원")
+                    st.write(f"📉 저점: {d['low']:,.0f} (2~4일내) | 📈 고점: {d['high']:,.0f} (10~15일내)")
 
 with tab2:
     st.header("🔍 상세 종목 검색")
@@ -69,4 +71,4 @@ with tab2:
 
 with tab3:
     st.header("🧩 AI 포트폴리오")
-    st.write("예산에 맞춘 최적 배분 결과를 확인하세요.")
+    st.write("사용자의 예산을 기반으로 한 최적 자산 배분 현황입니다.")
