@@ -1,82 +1,102 @@
 import streamlit as st
-import numpy as np
 import yfinance as yf
 import pandas as pd
+import numpy as np
 
-st.set_page_config(layout="wide", page_title="🔮 서윤의 주식 마법사 2026")
+# 페이지 설정
+st.set_page_config(layout="wide", page_title="🔮 서윤의 주식 마법사 PRO")
 
-# 1. AI 데이터 분석 함수
+# 1. AI 데이터 분석 함수 (yfinance 기반)
 @st.cache_data(ttl=600)
-def get_analysis(ticker):
+def analyze_stock(ticker_symbol):
     try:
-        t = yf.Ticker(ticker)
-        df = t.history(period="3mo")
+        t = yf.Ticker(ticker_symbol)
+        df = t.history(period="6mo")
         if df.empty: return None
-        close = df["Close"]
-        current = float(close.iloc[-1])
-        ma5, ma20 = close.tail(5).mean(), close.tail(20).mean()
-        vol = df["Volume"].iloc[-1]
-        vol_avg = df["Volume"].tail(20).mean()
         
-        score = int((ma5 > ma20)*40 + (current > ma20)*30 + (vol > vol_avg)*20 + (current > close.iloc[-5])*10)
-        return {"price": current, "score": score, "ma5": ma5, "ma20": ma20, "vol_chg": (vol/vol_avg-1)*100, "vol": vol}
+        curr = float(df['Close'].iloc[-1])
+        ma5 = float(df['Close'].rolling(5).mean().iloc[-1])
+        ma20 = float(df['Close'].rolling(20).mean().iloc[-1])
+        vol = df['Volume'].iloc[-1]
+        vol_avg = float(df['Volume'].rolling(20).mean().iloc[-1])
+        
+        # AI 점수 로직
+        score = 0
+        if ma5 > ma20: score += 30
+        if curr > ma20: score += 30
+        if vol > vol_avg: score += 20
+        if curr > float(df['Close'].iloc[-10]): score += 20
+        
+        # 고점/저점 추정 (변동성 기반)
+        std = float(df['Close'].tail(20).std())
+        low_target = curr * (1 - (std / curr) * 1.5)
+        high_target = curr * (1 + (std / curr) * 1.5)
+        
+        grade = "🔥 강력매수" if score >= 80 else "👍 매수" if score >= 60 else "🤔 관망" if score >= 40 else "❌ 비추천"
+        
+        return {
+            "price": curr, "score": score, "grade": grade, "ma5": ma5, "ma20": ma20,
+            "low": low_target, "high": high_target, "chart": df['Close']
+        }
     except: return None
 
-# 데이터 준비
-stocks = [("삼성전자", "005930.KS"), ("NVIDIA", "NVDA"), ("Tesla", "TSLA"), ("SK하이닉스", "000660.KS"), ("Palantir", "PLTR"), ("SoFi", "SOFI")]
-data_map = {name: get_analysis(ticker) for name, ticker in stocks}
-valid_data = {k: v for k, v in data_map.items() if v}
+# 2. 데이터 준비
+stocks = {"국내": [("삼성전자", "005930.KS"), ("SK하이닉스", "000660.KS"), ("현대차", "005380.KS"), ("NAVER", "035420.KS"), ("셀트리온", "068270.KS")],
+          "해외": [("NVIDIA", "NVDA"), ("Palantir", "PLTR"), ("Tesla", "TSLA"), ("Apple", "AAPL"), ("SoFi", "SOFI")]}
 
-# 1. 오늘의 1등 주식
-top_stock = max(valid_data, key=lambda k: valid_data[k]['score'])
+# 3. 사이드바 및 예산 입력
+st.sidebar.title("🤖 주식 마법사 설정")
+budget = st.sidebar.number_input("투자 예산 (원)", value=1000000, step=10000)
+
+# 4. 분석 수행
+all_data = {}
+for cat, items in stocks.items():
+    for name, ticker in items:
+        res = analyze_stock(ticker)
+        if res: all_data[name] = {**res, "ticker": ticker, "cat": cat}
+
+# 5. 메인 화면: BEST PICK
 st.title("🔮 서윤의 주식 마법사 PRO")
-c1, c2 = st.columns([1, 2])
-with c1:
-    st.metric("🏆 오늘의 1등 추천", top_stock, f"{valid_data[top_stock]['score']}점")
-    st.subheader("추천 : 강력매수" if valid_data[top_stock]['score'] > 80 else "매수")
+best_name = max(all_data, key=lambda x: all_data[x]['score'])
+best = all_data[best_name]
 
-# 2. 지금 사도 되는가?
-if st.button("🚨 지금 사도 될까?"):
-    score = valid_data[top_stock]['score']
-    st.info("매수 추천" if score > 70 else ("관망 추천" if score > 40 else "고점 주의"))
+st.subheader("👑 오늘의 BEST PICK")
+col_b1, col_b2 = st.columns([1, 2])
+with col_b1:
+    st.metric(best_name, f"{best['price']:,.0f}원", f"{best['score']}점")
+    st.write(f"투자의견: {best['grade']}")
+with col_b2:
+    st.write("추천 이유: 거래량 기반 상승 추세 유지 및 MA5 > MA20 골든크로스 근접.")
 
-# 3. 상승 확률 & 4. 숨은 보석
-col1, col2 = st.columns(2)
-with col1:
-    st.subheader("📈 삼성전자 상승 확률")
-    st.progress(0.8) # 예시 80%
-    st.write("████████░░ 80%")
-with col2:
-    st.subheader("💎 오늘의 보석주")
-    gem = min(valid_data, key=lambda k: valid_data[k]['price'])
-    st.success(f"{gem} (AI {valid_data[gem]['score']}점, 저평가 매력)")
-
-# 5. 종목 배틀
 st.divider()
-st.subheader("⚔️ 종목 배틀 (삼성 vs 하이닉스)")
-if st.button("배틀 시작"):
-    a, b = valid_data["삼성전자"]["score"], valid_data["SK하이닉스"]["score"]
-    winner = "SK하이닉스" if b > a else "삼성전자"
-    st.write(f"### AI 승자 : {winner} ({max(a,b)} : {min(a,b)})")
 
-# 6, 7. 시뮬레이터 & 랜덤픽
-c1, c2 = st.columns(2)
-with c1:
-    st.subheader("🤑 100만원 투자 시뮬레이터")
-    st.write(f"1개월 후 예상: {int(1000000 * 1.08):,}원")
-with c2:
-    st.subheader("🎰 AI 랜덤 픽")
-    if st.button("오늘의 한방픽"):
-        st.write(f"🎯 **{np.random.choice(list(valid_data.keys()))}**")
+# 6. 탭 구성
+tab1, tab2 = st.tabs(["📊 실시간 종목 분석", "🧩 AI 포트폴리오"])
 
-# 8, 9, 10. 성적표 & 급등탐지기 & TOP 5
-st.divider()
-st.subheader("👑 오늘 가장 살만한 종목 TOP 5")
-sorted_stocks = sorted(valid_data.items(), key=lambda x: x[1]['score'], reverse=True)
-for i, (name, val) in enumerate(sorted_stocks[:5]):
-    st.write(f"{i+1}위. **{name}** - {val['score']}점")
+with tab1:
+    cat_tabs = st.tabs(["🇰🇷 국내 주식 TOP 5", "🇺🇸 해외 주식 TOP 5"])
+    for i, cat in enumerate(["국내", "해외"]):
+        with cat_tabs[i]:
+            sorted_stocks = sorted([k for k, v in all_data.items() if v['cat'] == cat], 
+                                  key=lambda x: all_data[x]['score'], reverse=True)
+            for idx, name in enumerate(sorted_stocks[:5]):
+                d = all_data[name]
+                with st.expander(f"{idx+1}위 {name} - AI {d['score']}점 ({d['grade']})"):
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("현재가", f"{d['price']:,.0f}원")
+                    c2.metric("매수 타이밍", "🟢 적합" if d['score'] > 60 else "🟡 분할권장")
+                    
+                    # 수량 및 수익 분석
+                    qty = int(budget * (d['score']/500) / d['price']) # 가중치 부여
+                    c3.metric("구매 가능 수량", f"{qty}주")
+                    c4.metric("예상 수익률", f"+{((d['high']-d['price'])/d['price']*100):.1f}%")
+                    
+                    st.line_chart(d['chart'])
+                    st.caption("※ 본 분석은 이동평균선과 변동성을 기반으로 한 AI 추정치입니다.")
 
-st.sidebar.subheader("🚀 급등 탐지기")
-for name, val in valid_data.items():
-    if val['vol_chg'] > 50:
-        st.sidebar.error(f"🚨 {name} 거래량 +{val['vol_chg']:.0f}%")
+with tab2:
+    st.subheader("💰 AI 자동 배분 포트폴리오")
+    total_score = sum(d['score'] for d in all_data.values())
+    for name, d in all_data.items():
+        weight = d['score'] / total_score
+        st.write(f"- **{name}**: 비중 {weight:.1%} (투자금 {int(budget*weight):,}원)")
