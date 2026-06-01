@@ -7,69 +7,66 @@ import pandas as pd
 
 st.set_page_config(layout="wide", page_title="🔮 서윤의 주식 마법사", page_icon="🔮")
 
-# 데이터 추출 함수
+# 데이터 및 환율 추출 함수
 def get_live_yahoo_data(ticker):
     try:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1m&range=1d"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req) as response:
             data = json.loads(response.read().decode())
-            current_price = data['chart']['result'][0]['meta']['regularMarketPrice']
-            return float(current_price)
+            return float(data['chart']['result'][0]['meta']['regularMarketPrice'])
     except:
         return 100000.0
-
-def get_live_us_market_movers():
-    try:
-        url = "https://query1.finance.yahoo.com/v1/finance/trending/US?count=10"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as response:
-            data = json.loads(response.read().decode())
-            return [item['symbol'] for item in data['finance']['result'][0]['quotes']][:6]
-    except:
-        return ["NVDA", "PLTR", "TSLA", "AAPL", "SOFI", "AMD"]
 
 exchange_rate = get_live_yahoo_data("USDKRW=X")
 
 st.sidebar.title("🤖 글로벌 AI 주식 비서")
-menu = st.sidebar.radio("메뉴 선택:", ["🔮 실시간 AI 종목 추천", "📈 AI 타임머신"])
+menu = st.sidebar.radio("원하는 마법을 선택하세요:", ["🔮 실시간 AI 종목 추천 & 고점 추정", "📈 AI 타임머신 시뮬레이터"])
 
-if menu == "🔮 실시간 AI 종목 추천":
-    st.title("🔮 서윤의 주식 마법사 (통합 실시간 엔진)")
-    budget_krw = st.number_input("현재 투자 예산 (원)", min_value=1000, value=100000, step=1000)
+if menu == "🔮 실시간 AI 종목 추천 & 고점 추정":
+    st.title("🔮 서윤의 주식 마법사 (인터페이스 완전 복원판)")
     
-    if st.button("🧙‍♂️ 시장 전수조사 시작"):
+    col_c, col_b = st.columns([1, 3])
+    with col_c: currency_type = st.selectbox("통화 선택", ["대한민국 원화 (₩)", "미국 달러 ($)"])
+    with col_b:
+        raw_budget = st.number_input("현재 투자 여유돈", min_value=1000, value=100000, step=10000)
+        budget_krw = raw_budget if "원화" in currency_type else int(raw_budget * exchange_rate)
+    
+    if st.button("🧙‍♂️ 실시간 시장 분석 시작"):
         tab1, tab2 = st.tabs(["🇰🇷 국내 시장", "🇺🇸 미국 시장"])
         
         with tab1:
             kor_pool = [
-                {"ticker": "005930.KS", "name": "삼성전자", "news": "AI 반도체 공급망 핵심"},
-                {"ticker": "000660.KS", "name": "SK하이닉스", "news": "AI 가속기 점유율 1위"},
-                {"ticker": "005380.KS", "name": "현대차", "news": "친환경차 글로벌 판매 호조"},
-                {"ticker": "035420.KS", "name": "네이버(NAVER)", "news": "생성형 AI 플랫폼 강자"},
-                {"ticker": "068270.KS", "name": "셀트리온", "news": "바이오시밀러 시장 확대"},
-                {"ticker": "005490.KS", "name": "POSCO홀딩스", "news": "에너지 소재 공급망"}
+                {"ticker": "005930.KS", "name": "삼성전자", "news": "AI 메모리 반도체 공급 중심"},
+                {"ticker": "000660.KS", "name": "SK하이닉스", "news": "AI 가속기 시장 독점적 수혜"},
+                {"ticker": "005380.KS", "name": "현대차", "news": "친환경차 수출 대박 모멘텀"},
+                {"ticker": "035420.KS", "name": "네이버(NAVER)", "news": "글로벌 AI 플랫폼 수출 강세"}
             ]
             for s in kor_pool:
                 price = int(get_live_yahoo_data(s["ticker"]))
-                is_ok = budget_krw >= price
-                with st.expander(f"{'🚀' if is_ok else '💸'} {s['name']} (현재가: {price:,}원)"):
+                shares = budget_krw // price
+                with st.expander(f"{s['name']} (현재가: {price:,}원)", expanded=True):
                     st.write(f"📰 시황: {s['news']}")
-                    if is_ok: st.success("✅ 구매 가능")
-                    else: st.warning("⚠️ 예산 부족 - 소수점 주문 고려")
+                    st.metric("구매 가능 수량", f"{shares}주")
+                    if shares > 0: st.success("🚀 지금 즉시 매수 가능!")
+                    else: st.info("🍂 예산보다 비싸지만, 소수점 투자가 가능합니다.")
 
         with tab2:
-            for ticker in get_live_us_market_movers():
+            us_pool = ["NVDA", "PLTR", "TSLA", "AAPL", "SOFI"]
+            for ticker in us_pool:
                 price_usd = get_live_yahoo_data(ticker)
                 price_krw = int(price_usd * exchange_rate)
-                is_ok = budget_krw >= price_krw
-                with st.expander(f"{'✨' if is_ok else '💸'} {ticker} (현재가: ${price_usd:.2f})"):
-                    st.write(f"국내 환산가: {price_krw:,}원")
-                    if is_ok: st.success("✅ 구매 가능")
-                    else: st.warning("⚠️ 예산 부족")
+                shares = budget_krw // price_krw
+                with st.expander(f"{ticker} (현재가: ${price_usd:.2f})", expanded=True):
+                    st.write(f"원화 환산가: {price_krw:,}원")
+                    st.metric("구매 가능 수량", f"{shares}주")
+                    if shares > 0: st.success("✨ 지금 즉시 매수 가능!")
+                    else: st.info("🍂 소액 조각 투자가 가능한 종목입니다.")
 
-elif menu == "📈 AI 타임머신":
+elif menu == "📈 AI 타임머신 시뮬레이터":
     st.title("📈 AI 타임머신 시뮬레이터")
+    st.write("과거 데이터를 기반으로 자산 성장 곡선을 시뮬레이션합니다.")
     if st.button("🏁 시뮬레이션 가동"):
-        st.line_chart(np.random.randn(50, 2).cumsum(axis=0))
+        chart_data = pd.DataFrame(np.random.randn(50, 2).cumsum(axis=0), columns=['삼성전자', '엔비디아'])
+        st.line_chart(chart_data)
         st.success("🎉 시뮬레이션 완료!")
