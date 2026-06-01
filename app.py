@@ -27,37 +27,43 @@ st.title("🔮 서윤의 주식 마법사")
 budget = st.number_input(f"현재 투자 예산 ({'원' if '원화' in currency else '$'})", value=1000000 if '원화' in currency else 1000)
 budget_krw = budget if "원화" in currency else (budget * exchange_rate)
 
-if st.button("🚀 수익 극대화 조합 생성"):
-    # 데이터 정리 및 수익률 할당
-    portfolio = []
-    for name, ticker in all_stocks:
-        price = int(get_live_yahoo_data(ticker) * (1 if ".KS" in ticker else exchange_rate))
-        gain = np.random.randint(5, 25) # AI 예상 수익률
-        can_buy = (budget_krw >= price)
-        if style == "온전한 1주만" and not can_buy: continue
-        portfolio.append({"name": name, "price": price, "gain": gain})
+# 메뉴 분리: 분석과 포트폴리오를 탭으로 완전히 분리
+tab_main, tab_port = st.tabs(["📊 실시간 종목 분석 (롤백 버전)", "🧩 수익 극대화 포트폴리오 조합"])
 
-    # 수익률 기준 정렬 (수익률 높은 순)
-    portfolio.sort(key=lambda x: x['gain'], reverse=True)
-
-    if portfolio:
-        # 1. 최고의 종목
-        st.success(f"🏆 **수익률 1위 추천**: {portfolio[0]['name']} (예상 수익률 +{portfolio[0]['gain']}%)")
-        
-        # 2. 예산 최적 배분 (수익률 상위 5개 종목에 차등 배분)
-        st.write("---")
-        st.write("### 🧩 AI 수익 극대화 포트폴리오 (상위 5개 종목)")
-        st.write("💡 수익률이 높은 종목에 예산을 더 많이 배분한 효율적 조합입니다.")
-        
-        total_gain_sum = sum(p['gain'] for p in portfolio[:5])
-        
-        for p in portfolio[:5]:
-            # 수익률 비중에 따라 예산 배분
-            weight = p['gain'] / total_gain_sum
-            alloc = budget_krw * weight
-            qty = alloc / p['price']
+with tab_main:
+    if st.button("🚀 종목 분석 실행"):
+        for name, ticker in all_stocks:
+            price = int(get_live_yahoo_data(ticker) * (1 if ".KS" in ticker else exchange_rate))
+            qty_raw = budget_krw / price
             
-            qty_display = f"{int(qty)} 주" if style == "온전한 1주만" else f"{qty:.4f} 주"
-            st.write(f"- **{p['name']}**: {qty_display} (비중 {weight:.1%})")
-    else:
-        st.warning("⚠️ 선택하신 조건으로 매수 가능한 종목이 없습니다.")
+            # 1주 미만 시 0주 표시 방지
+            display_qty = f"{int(qty_raw)} 주" if style == "온전한 1주만" else f"{qty_raw:.4f} 주"
+            if style == "온전한 1주만" and qty_raw < 1: display_qty = "매수 불가"
+
+            with st.expander(f"📊 {name} (현재가: {price:,}원)"):
+                st.write(f"보유 가능 수량: {display_qty}")
+
+with tab_port:
+    st.write("### 🤖 수익 극대화 차등 배분 포트폴리오")
+    if st.button("🪄 최적 조합 생성"):
+        portfolio = []
+        for name, ticker in all_stocks:
+            price = int(get_live_yahoo_data(ticker) * (1 if ".KS" in ticker else exchange_rate))
+            gain = np.random.randint(5, 25)
+            can_buy = (budget_krw >= price)
+            
+            if style == "온전한 1주만" and not can_buy: continue
+            portfolio.append({"name": name, "price": price, "gain": gain})
+
+        if portfolio:
+            portfolio.sort(key=lambda x: x['gain'], reverse=True)
+            top5 = portfolio[:5]
+            total_gain = sum(p['gain'] for p in top5)
+            
+            for p in top5:
+                weight = p['gain'] / total_gain
+                qty = (budget_krw * weight) / p['price']
+                qty_display = f"{int(qty)} 주" if style == "온전한 1주만" else f"{qty:.4f} 주"
+                st.write(f"- **{p['name']}**: {qty_display} (비중 {weight:.1%})")
+        else:
+            st.warning("예산 범위 내에서 조합 가능한 종목이 없습니다.")
