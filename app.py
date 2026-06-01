@@ -40,19 +40,22 @@ with tab_main:
             
             if style == "온전한 1주만" and qty_raw < 1: continue
             
+            # 신규 분석 지표
             gain = np.random.randint(5, 25)
             profit = int(budget_krw * (gain / 100))
             peak_price = int(price * (1 + gain / 100))
-            days = np.random.randint(3, 20)
+            buy_price = int(price * 0.95) # 5% 조정을 저점 타겟으로 설정
+            days_to_buy = np.random.randint(1, 5) # 저점 도달 예측일
+            days_to_peak = np.random.randint(3, 20)
+            
             qty_disp = f"{int(qty_raw)} 주" if style == "온전한 1주만" else f"{qty_raw:.4f} 주"
             
-            # expanded=True로 변경하여 처음에 펴져 있도록 설정
             with st.expander(f"📊 {name} (현재가: {price:,}원)", expanded=True):
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("보유 수량", qty_disp)
-                c2.metric("🎯 예상 수익률", f"+{gain}%")
-                c3.metric("💰 예상 수익금", f"+{profit:,}원")
-                c4.metric("📈 예상 고점", f"{peak_price:,}원 ({days}일 후)")
+                c2.metric("💰 예상 수익금", f"+{profit:,}원")
+                c3.metric("📉 매수 타겟가", f"{buy_price:,}원 ({days_to_buy}일 내)")
+                c4.metric("📈 예상 고점", f"{peak_price:,}원 ({days_to_peak}일 후)")
 
     with sub_tab1: display_stocks(kor_stocks, True)
     with sub_tab2: display_stocks(us_stocks, False)
@@ -75,7 +78,6 @@ with tab_port:
                 weight = p['gain'] / total_gain
                 qty = (budget_krw * weight) / p['price']
                 if style == "온전한 1주만" and qty < 1: continue
-                
                 qty_disp = f"{int(qty)} 주" if style == "온전한 1주만" else f"{qty:.4f} 주"
                 st.write(f"- **{p['name']}**: {qty_disp} (비중 {weight:.1%})")
         else:
