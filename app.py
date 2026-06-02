@@ -13,7 +13,7 @@ def get_realtime_rate():
         return requests.get(url).json()['rates']['KRW']
     except: return 1380.0
 
-# 2. 분석 엔진 (급락 계산 로직 추가)
+# 2. 분석 엔진
 def get_analysis(ticker, is_dom, budget_krw, rate):
     try:
         t = yf.Ticker(ticker)
@@ -22,14 +22,17 @@ def get_analysis(ticker, is_dom, budget_krw, rate):
         curr = float(df['Close'].iloc[-1])
         prev = float(df['Close'].iloc[-2])
         change_pct = ((curr - prev) / prev) * 100
-        vol_ratio = df['Volume'].iloc[-1] / df['Volume'].rolling(20).mean().iloc[-1]
-        
+        vol_avg = df['Volume'].rolling(20).mean().iloc[-1]
+        vol_ratio = df['Volume'].iloc[-1] / vol_avg
         std = df['Close'].rolling(20).std().iloc[-1]
+        
         price_krw = curr if is_dom else curr * rate
+        low = curr * (1 - (std/curr)*0.8)
+        high = curr * (1 + (std/curr)*1.2)
         
         return {
-            "price_orig": curr, "price_krw": price_krw,
-            "change_pct": change_pct, "vol": vol_ratio,
+            "price_orig": curr, "price_krw": price_krw, "change_pct": change_pct,
+            "vol": vol_ratio, "low": low, "high": high, "profit": ((high-curr)/curr)*100,
             "qty": int(budget_krw / price_krw)
         }
     except: return None
@@ -38,12 +41,13 @@ def get_analysis(ticker, is_dom, budget_krw, rate):
 st.title("🔮 서윤의 주식 마법사 PRO")
 rate = get_realtime_rate()
 budget_krw = st.sidebar.number_input("예산(KRW)", value=1000000, step=10000)
+st.sidebar.metric("실시간 환율", f"{rate:,.2f} KRW")
 
-# 탭 구조: 추천, 급등, 급락
+kor_list = [("삼성전자", "005930.KS"), ("SK하이닉스", "000660.KS"), ("현대차", "005380.KS"), ("네이버", "035420.KS"), ("카카오", "035720.KS")]
+usa_list = [("엔비디아", "NVDA"), ("테슬라", "TSLA"), ("애플", "AAPL"), ("팔란티어", "PLTR"), ("마이크로소프트", "MSFT")]
+all_list = kor_list + usa_list
+
 tab1, tab2, tab3 = st.tabs(["🚀 추천 종목", "⚡ 급등 예정", "📉 급하락 포착"])
-
-full_list = [("삼성전자", "005930.KS"), ("SK하이닉스", "000660.KS"), ("현대차", "005380.KS"), 
-             ("엔비디아", "NVDA"), ("테슬라", "TSLA"), ("애플", "AAPL"), ("팔란티어", "PLTR")]
 
 with tab1:
     col1, col2 = st.columns(2)
@@ -60,15 +64,14 @@ with tab1:
 
 with tab2:
     st.header("⚡ 지금 막 급등 시작하는 종목")
-    for name, ticker in full_list:
+    for name, ticker in all_list:
         res = get_analysis(ticker, ".KS" in ticker, budget_krw, rate)
         if res and res['vol'] > 1.2:
-            st.warning(f"🚀 **{name}** - 거래량 {res['vol']:.1f}배 폭발!")
+            st.warning(f"🚀 **{name}** - 거래량 {res['vol']:.1f}배 폭발! (현재가: {res['price_krw']:.0f}원)")
 
 with tab3:
     st.header("📉 급하락 포착 (기술적 반등 구간)")
-    for name, ticker in full_list:
+    for name, ticker in all_list:
         res = get_analysis(ticker, ".KS" in ticker, budget_krw, rate)
-        # 3% 이상 하락 시 급락으로 간주
         if res and res['change_pct'] <= -3.0:
-            st.error(f"📉 **{name}** - 가격 {res['change_pct']:.1f}% 하락! (과매도 구간 주의)")
+            st.error(f"📉 **{name}** - {res['change_pct']:.1f}% 하락! (현재가: {res['price_krw']:.0f}원)")
