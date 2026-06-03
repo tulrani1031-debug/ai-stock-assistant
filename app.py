@@ -1,45 +1,39 @@
 import streamlit as st
-import openai
+import yfinance as yf
+import pandas as pd
 
-# API 키 설정 (보안을 위해 코드에 직접 적기보다 환경변수 사용 권장)
-# 만약 오류가 나면 openai.api_key = "본인의_API_KEY" 를 여기에 넣으세요
-openai.api_key = "여기에_OPENAI_API_KEY_입력"
+# 1. 기술적 분석 엔진 (저점/고점 판별)
+def analyze_tech(ticker_symbol):
+    t = yf.Ticker(ticker_symbol)
+    df = t.history(period="1mo")
+    if len(df) < 20: return None
+    
+    # 볼린저 밴드 계산 (고점/저점 판단)
+    df['MA20'] = df['Close'].rolling(window=20).mean()
+    df['STD'] = df['Close'].rolling(window=20).std()
+    df['Upper'] = df['MA20'] + (df['STD'] * 2)
+    df['Lower'] = df['MA20'] - (df['STD'] * 2)
+    
+    current_price = df['Close'].iloc[-1]
+    
+    # 분석 로직: 저점(하단 밴드 근접), 고점(상단 밴드 근접)
+    if current_price <= df['Lower'].iloc[-1]:
+        return "저점(매수 기회)", "반등 가능성 높음"
+    elif current_price >= df['Upper'].iloc[-1]:
+        return "고점(매도 기회)", "조정 가능성 높음"
+    return "관망", "추세 확인 필요"
 
-st.title("📈 AI 차트 & 뉴스 통합 분석기")
-st.write("차트 이미지를 드래그 앤 드롭으로 업로드하고 분석을 시작하세요.")
+# 2. UI 레이아웃
+st.title("🚀 실시간 시장 주도주 & 타점 분석기")
 
-# 1. 파일 업로더 (드래그 앤 드롭 지원)
-uploaded_file = st.file_uploader("차트 이미지 업로드", type=["png", "jpg", "jpeg"])
-ticker = st.text_input("종목명 (예: NVDA, 005930.KS)")
+# 종목 입력 (원하는 종목 혹은 대형주 리스트)
+ticker_input = st.text_input("분석할 종목 코드를 입력하세요 (예: 005930.KS, NVDA)")
 
-# 2. 분석 실행 로직
 if st.button("분석 실행"):
-    if uploaded_file is None or not ticker:
-        st.warning("이미지와 종목명을 모두 입력해주세요!")
+    res = analyze_tech(ticker_input)
+    if res:
+        st.subheader(f"종목: {ticker_input}")
+        st.metric("현재 분석 상태", res[0])
+        st.write(f"**AI 의견:** {res[1]}")
     else:
-        with st.spinner('AI가 차트와 뉴스를 분석 중입니다...'):
-            try:
-                # 이미지 보여주기
-                st.image(uploaded_file, caption='업로드된 차트', use_container_width=True)
-                
-                # 분석 메시지 구성 (이미지 데이터는 바이너리로 전송)
-                st.info("분석 중... 잠시만 기다려주세요.")
-                
-                # 실제 분석 요청
-                response = openai.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": "당신은 전문 주식 분석가입니다. 업로드된 차트 이미지의 패턴(지지/저항/추세)을 분석하고, 사용자가 입력한 종목의 현재 시장 상황과 결합하여 투자 의견을 제시하세요."},
-                        {"role": "user", "content": [
-                            {"type": "text", "text": f"이 차트를 분석하고 {ticker}의 향후 방향성을 예측해줘."},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{uploaded_file.getvalue().hex()}"}}
-                        ]}
-                    ]
-                )
-                
-                # 결과 출력
-                st.subheader("💡 AI 분석 결과")
-                st.write(response.choices[0].message.content)
-                
-            except Exception as e:
-                st.error(f"분석 중 오류가 발생했습니다: {e}")
+        st.error("데이터를 가져올 수 없습니다.")
