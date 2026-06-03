@@ -2,38 +2,48 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 
-# 1. 기술적 분석 엔진 (저점/고점 판별)
-def analyze_tech(ticker_symbol):
-    t = yf.Ticker(ticker_symbol)
-    df = t.history(period="1mo")
-    if len(df) < 20: return None
+# 환율 정보 (실시간 데이터로 갱신)
+def get_usd_to_krw():
+    try:
+        return yf.Ticker("USDKRW=X").history(period="1d")['Close'].iloc[-1]
+    except:
+        return 1380 # 비상시 고정 환율
+
+# 분석 엔진
+def analyze_stock(ticker_symbol, is_us=False):
+    ticker = yf.Ticker(ticker_symbol)
+    df = ticker.history(period="1mo")
     
-    # 볼린저 밴드 계산 (고점/저점 판단)
-    df['MA20'] = df['Close'].rolling(window=20).mean()
-    df['STD'] = df['Close'].rolling(window=20).std()
+    # 지표 계산
+    df['MA20'] = df['Close'].rolling(20).mean()
+    df['STD'] = df['Close'].rolling(20).std()
     df['Upper'] = df['MA20'] + (df['STD'] * 2)
     df['Lower'] = df['MA20'] - (df['STD'] * 2)
     
-    current_price = df['Close'].iloc[-1]
+    curr = df['Close'].iloc[-1]
     
-    # 분석 로직: 저점(하단 밴드 근접), 고점(상단 밴드 근접)
-    if current_price <= df['Lower'].iloc[-1]:
-        return "저점(매수 기회)", "반등 가능성 높음"
-    elif current_price >= df['Upper'].iloc[-1]:
-        return "고점(매도 기회)", "조정 가능성 높음"
-    return "관망", "추세 확인 필요"
-
-# 2. UI 레이아웃
-st.title("🚀 실시간 시장 주도주 & 타점 분석기")
-
-# 종목 입력 (원하는 종목 혹은 대형주 리스트)
-ticker_input = st.text_input("분석할 종목 코드를 입력하세요 (예: 005930.KS, NVDA)")
-
-if st.button("분석 실행"):
-    res = analyze_tech(ticker_input)
-    if res:
-        st.subheader(f"종목: {ticker_input}")
-        st.metric("현재 분석 상태", res[0])
-        st.write(f"**AI 의견:** {res[1]}")
+    # 환율 변환
+    if is_us:
+        rate = get_usd_to_krw()
+        curr_krw = curr * rate
     else:
-        st.error("데이터를 가져올 수 없습니다.")
+        curr_krw = curr
+        
+    return {
+        "종목": ticker_symbol,
+        "현재가": f"{curr_krw:,.0f}원",
+        "저점(매수타점)": f"{df['Lower'].iloc[-1] * (rate if is_us else 1):,.0f}원",
+        "고점(매도타점)": f"{df['Upper'].iloc[-1] * (rate if is_us else 1):,.0f}원"
+    }
+
+st.title("🔥 실시간 급등 후보 종목 추천")
+
+# 분석 대상 (시장 주도주)
+domestic = "005930.KS" # 삼성전자 예시
+overseas = "NVDA"      # 엔비디아 예시
+
+data = [analyze_stock(domestic), analyze_stock(overseas, is_us=True)]
+df_res = pd.DataFrame(data)
+
+st.table(df_res)
+st.warning("⚠️ 이 데이터는 실시간 기술적 지표 기준입니다. 투자의 책임은 본인에게 있습니다.")
