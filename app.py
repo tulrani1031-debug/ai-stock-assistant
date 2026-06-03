@@ -2,43 +2,41 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 
-# 안정적인 데이터 호출 함수
-def get_stock_data(ticker_symbol):
-    try:
-        t = yf.Ticker(ticker_symbol)
-        hist = t.history(period="5d")
-        if hist.empty: return None, 0
-        return t, hist['Volume'].iloc[-1]
-    except:
-        return None, 0
-
-def analyze(ticker_symbol, is_us):
-    t, vol = get_stock_data(ticker_symbol)
-    if t is None: return None
+def get_data(ticker):
+    t = yf.Ticker(ticker)
+    df = t.history(period="3mo")
+    if df.empty: return None
     
-    df = t.history(period="1mo")
-    rate = yf.Ticker("USDKRW=X").history(period="1d")['Close'].iloc[-1] if is_us else 1
+    # 환율 정보
+    rate = yf.Ticker("USDKRW=X").history(period="1d")['Close'].iloc[-1] if 'USD' in ticker or ticker.isalpha() else 1
     
-    curr = df['Close'].iloc[-1]
     # 볼린저 밴드 계산
-    ma20 = df['Close'].rolling(20).mean().iloc[-1]
-    std20 = df['Close'].rolling(20).std().iloc[-1]
+    df['MA20'] = df['Close'].rolling(20).mean()
+    df['STD'] = df['Close'].rolling(20).std()
+    low = (df['MA20'] - (df['STD'] * 2)).iloc[-1]
+    high = (df['MA20'] + (df['STD'] * 2)).iloc[-1]
+    curr = df['Close'].iloc[-1]
     
-    low = (ma20 - (std20 * 2)) * rate
-    high = (ma20 + (std20 * 2)) * rate
-    
-    return [ticker_symbol, f"{curr * rate:,.0f}원", f"{low:,.0f}원", f"{high:,.0f}원"]
+    return curr, low, high, rate
 
-st.title("🔥 실시간 주도주 분석기")
+st.title("💰 종목 타점 및 예상 수익 분석기")
 
-if st.button("시장 분석 실행"):
-    with st.spinner('데이터를 분석 중입니다...'):
-        kr_list = ["005930.KS", "000660.KS", "373220.KS"]
-        us_list = ["NVDA", "TSLA", "AAPL"]
+ticker_input = st.text_input("종목 티커를 입력하세요 (예: NVDA, 005930.KS)").upper()
+
+if st.button("분석 실행"):
+    result = get_data(ticker_input)
+    if result:
+        curr, low, high, rate = result
         
-        # 가장 거래량이 많은 종목 찾기
-        best_kr = max(kr_list, key=lambda x: get_stock_data(x)[1])
-        best_us = max(us_list, key=lambda x: get_stock_data(x)[1])
+        # 수익률 계산
+        profit_pot = ((high - curr) / curr) * 100
         
-        res = [analyze(best_kr, False), analyze(best_us, True)]
-        st.table(pd.DataFrame(res, columns=["종목", "현재가", "저점(매수)", "고점(매도)"]))
+        data = {
+            "항목": ["현재가", "매수(저점)", "매도(고점)", "예상 수익률"],
+            "달러($/원)": [f"${curr:.2f}", f"${low:.2f}", f"${high:.2f}", f"{profit_pot:.2f}%"],
+            "원화(KRW)": [f"{curr*rate:,.0f}원", f"{low*rate:,.0f}원", f"{high*rate:,.0f}원", "-"]
+        }
+        st.table(pd.DataFrame(data))
+        st.info(f"💡 현재가 대비 고점 도달 시 약 {profit_pot:.2f}%의 수익이 예상됩니다.")
+    else:
+        st.error("종목 정보를 찾을 수 없습니다. 티커를 확인하세요.")
